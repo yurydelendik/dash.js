@@ -61,9 +61,30 @@ MediaPlayer.dependencies.Stream = function () {
         // Encrypted Media Extensions
 
         onNeedKey = function (event) {
+            if (this.protectionModel.async) {
+              var mediaInfo = mediaInfos.video,
+                  initDataType = event.data.initDataType,
+                  initData = event.data.initData;
+              var self = this;
+              this.protectionExt.autoSelectKeySystemAsync(this.protectionModel, mediaInfo, initDataType, initData).then(function (selectedInitData) {
+                  if (!!self.keySystem && self.keySystem !== self.protectionModel.keySystem) {
+                      throw new Error("DRM:  Changing key systems within a single Period is not allowed!");
+                  }
+                  if (!self.keySystem) {
+                    self.keySystem = self.protectionModel.keySystem;
+                    self.protectionModel.keySystem.subscribe(MediaPlayer.dependencies.protection.KeySystem.eventList.ENAME_LICENSE_REQUEST_COMPLETE, self);
+                  }
+                  self.debug.log("DRM: Key required for - " + mediaInfo.codec);
+                  self.protectionController.createKeySession(selectedInitData, mediaInfo.codec, initDataType);
+              });
+              return;
+            }
+
             try {
                 var mediaInfo = mediaInfos.video,
-                    initData = this.protectionExt.autoSelectKeySystem(this.protectionModel, mediaInfo, event.data.initData);
+                    initDataType = event.data.initDataType,
+                    initData = event.data.initData,
+                    selectedInitData = this.protectionExt.autoSelectKeySystem(this.protectionModel, mediaInfo, initData);
 
                 if (!!this.keySystem && this.keySystem !== this.protectionModel.keySystem) {
                     throw new Error("DRM:  Changing key systems within a single Period is not allowed!");
@@ -73,7 +94,7 @@ MediaPlayer.dependencies.Stream = function () {
                     this.protectionModel.keySystem.subscribe(MediaPlayer.dependencies.protection.KeySystem.eventList.ENAME_LICENSE_REQUEST_COMPLETE, this);
                 }
                 this.debug.log("DRM: Key required for - " + mediaInfo.codec);
-                this.protectionController.createKeySession(initData, mediaInfo.codec);
+                this.protectionController.createKeySession(selectedInitData, mediaInfo.codec, initDataType);
             } catch (error) { // Thrown when media key system is not supported
                 this.errHandler.mediaKeySessionError(error.message);
                 this.debug.log(error.message);

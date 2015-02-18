@@ -208,6 +208,7 @@ MediaPlayer.models.ProtectionModel_01b = function () {
         unsubscribe: undefined,
         protectionExt: undefined,
         keySystem: null,
+        async: false,
 
         setup: function() {
             eventHandler = createEventHandler.call(this);

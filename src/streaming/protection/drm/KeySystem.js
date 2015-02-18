@@ -65,7 +65,7 @@ MediaPlayer.dependencies.protection.KeySystem = {
      * @param requestData object that will be returned in the
      * ENAME_LICENSE_REQUEST_COMPLETE event
      *
-     doLicenseRequest: function(msg, laURL, requestData) {},
+     doLicenseRequest: function(msg, laURL, requestData, newLicenseFormat) {},
      */
 
     /**
@@ -91,7 +91,8 @@ MediaPlayer.dependencies.protection.KeySystem = {
      */
 
     eventList: {
-        ENAME_LICENSE_REQUEST_COMPLETE: "licenseRequestComplete"
+        ENAME_LICENSE_REQUEST_COMPLETE: "licenseRequestComplete",
+        ENAME_CLEARKEY_LOOKUP: "clearkeyLookup",
     }
 };
 

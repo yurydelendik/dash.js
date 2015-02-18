@@ -95,6 +95,12 @@ MediaPlayer.models.ProtectionModel = {
      *
      keySystem: undefined
      */
+
+    /**
+     * Specifies if the protection model operates fully async
+     *
+     async: false
+     */
 };
 
 MediaPlayer.models.ProtectionModel.eventList = {

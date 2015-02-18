@@ -32,7 +32,7 @@
 MediaPlayer.dependencies.protection.KeySystem_ClearKey = function() {
     "use strict";
 
-    var keySystemStr = "webkit-org.w3.clearkey",
+    var keySystemStr = "org.w3.clearkey",
         keySystemUUID = "10000000-0000-0000-0000-000000000000",
         protData,
 
@@ -43,7 +43,54 @@ MediaPlayer.dependencies.protection.KeySystem_ClearKey = function() {
          * @param message the ClearKey PSSH
          * @param requestData request data to be passed back in the LicenseRequestComplete event
          */
-        requestClearKeyLicense = function(message, /*laURL,*/ requestData) {
+        requestClearKeyLicense = function(message, /*laURL,*/ requestData, newLicenseRequest) {
+            function arrayToHex(bin) {
+                var res = "";
+                for (var i = 0; i < bin.length; i++) {
+                  res += ("0" + bin[i].toString(16)).substr(-2);
+                }
+                return res;
+            }
+
+            function hexToArray(hex) {
+                var bin = [];
+                for (var i = 0; i < hex.length; i += 2) {
+                  bin.push(parseInt(hex.substr(i, 2), 16));
+                }
+                return new Uint8Array(bin);
+            }
+
+            if (newLicenseRequest) {
+                var keySet = MediaPlayer.vo.protection.ClearKeyKeySet.decode(message);
+
+                var keys = {
+                    // "keyid" : "key"
+                    "7e571d037e571d037e571d037e571d03": "7e5733337e5733337e5733337e573333",
+                    "7e571d047e571d047e571d047e571d04": "7e5744447e5744447e5744447e574444",
+                };
+
+                for (var i = 0; i < keySet.keyPairs.length; i++) {
+                  var keyid = keySet.keyPairs[i].keyID;
+
+                  //var event = new MediaPlayer.vo.protection.ClearKeyLookup(keyid);
+                  //this.notify(MediaPlayer.dependencies.protection.KeySystem.eventList.ENAME_CLEARKEY_LOOKUP, event);
+                  //var key = event.key;
+
+                  var keyHex = keys[arrayToHex(keyid).toLowerCase()];
+                  var key = keyHex && hexToArray(keyHex);
+
+                  if (key) {
+                    keySet.keyPairs[i].key = key;
+                  } else {
+                    console.warn("Couldn't find key for key id " + arrayToHex(keyid));
+                  }
+                }
+
+                var event = new MediaPlayer.vo.protection.LicenseRequestComplete(keySet, requestData);
+                this.notify(MediaPlayer.dependencies.protection.KeySystem.eventList.ENAME_LICENSE_REQUEST_COMPLETE, event);
+                return;
+            }
+
             var self = this,
                 i;
 
@@ -167,12 +214,13 @@ MediaPlayer.dependencies.protection.KeySystem_ClearKey = function() {
          * default or CDM-provided values
          */
         init: function(protectionData) {
-            this.schemeIdURI = "urn:uuid:" + keySystemUUID;
+            // ??? this.schemeIdURI = "urn:uuid:" + keySystemUUID;
+            this.schemeIdURI = "urn:mpeg:dash:mp4protection:2011";
             protData = protectionData;
         },
 
-        doLicenseRequest: function(message, laURL, requestData) {
-            requestClearKeyLicense.call(this, message, requestData);
+        doLicenseRequest: function(message, laURL, requestData, newLicenseFormat) {
+            requestClearKeyLicense.call(this, message, requestData, newLicenseFormat);
         },
 
         getInitData: function(/*cpData*/) { return null; },

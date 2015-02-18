@@ -20,8 +20,9 @@ MediaPlayer.dependencies.ProtectionController = function () {
                 this.debug.log(e.error);
             } else {
                 var keyMessageEvent = e.data;
+                var newLicenseFormat = this.protectionModel.async; // TODO use different check
                 this.protectionModel.keySystem.doLicenseRequest(keyMessageEvent.message,
-                    keyMessageEvent.defaultURL, keyMessageEvent.sessionToken);
+                    keyMessageEvent.defaultURL, keyMessageEvent.sessionToken, newLicenseFormat);
             }
         };
 
@@ -55,8 +56,8 @@ MediaPlayer.dependencies.ProtectionController = function () {
             this.protectionExt.autoSelectKeySystem(mediaInfo, initData);
         },
 
-        createKeySession: function(initData, contentType) {
-            this.protectionModel.createKeySession(initData, contentType, "cenc");
+        createKeySession: function(initData, contentType, initDataType) {
+            this.protectionModel.createKeySession(initData, contentType, initDataType);
         },
 
         updateKeySession: function(sessionToken, message) {

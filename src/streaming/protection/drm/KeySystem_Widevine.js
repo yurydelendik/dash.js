@@ -36,7 +36,11 @@ MediaPlayer.dependencies.protection.KeySystem_Widevine = function() {
         keySystemUUID = "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed",
         protData,
 
-        requestLicense = function(message, laURL, requestData) {
+        requestLicense = function(message, laURL, requestData, newLicenseFormat) {
+            if (newLicenseFormat) {
+                throw new Error('Not supported');
+            }
+
             var xhr = new XMLHttpRequest(),
                 headers = {},
                 key,

@@ -36,7 +36,11 @@ MediaPlayer.dependencies.protection.KeySystem_PlayReady = function() {
         keySystemUUID = "9a04f079-9840-4286-ab92-e65be0885f95",
         protData,
 
-        requestLicense = function(message, laURL, requestData) {
+        requestLicense = function(message, laURL, requestData, newLicenseFormat) {
+            if (newLicenseFormat) {
+              throw new Error('Not supported');
+            }
+
             var decodedChallenge = null,
                 headers = {},
                 headerName,

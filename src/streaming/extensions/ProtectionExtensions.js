@@ -144,6 +144,42 @@ MediaPlayer.dependencies.ProtectionExtensions = function () {
 
             this.debug.log("Selected key system -- " + ks.systemString);
             return selectedInitData;
+        },
+
+        autoSelectKeySystemAsync: function(protectionModel, mediaInfo, initDataType, initData) {
+            var ksIdx;
+            var supportedPromises = [], p;
+            for (ksIdx = 0; ksIdx < keySystems.length; ++ksIdx) {
+                p = protectionModel.isSupportedAsync(keySystems[ksIdx], mediaInfo.codec, initDataType);
+                supportedPromises.push(p);
+            }
+            var self = this;
+            return Promise.all(supportedPromises).then(function (supported) {
+                return supported.filter(function (s) { return !!s; });
+            }).then(function (onlySupported) {
+                var ks = null, result = null, selectedInitData = null;
+                onlySupported.some(function (keySystem) {
+                    for (var cpIdx = 0; cpIdx < mediaInfo.contentProtection.length; ++cpIdx) {
+                        var cp = mediaInfo.contentProtection[cpIdx];
+                        if (cp.schemeIdUri.toLowerCase() === keySystem.schemeIdURI) {
+                            ks = keySystem;
+                            selectedInitData = initData; // keySystem.getInitData(initData);
+                            result = protectionModel.selectKeySystemAsync(ks, mediaInfo.codec, initDataType);
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+
+                if (!ks) {
+                    throw new Error("DRM: The protection system for this content is not supported.");
+                }
+
+                self.debug.log("Selected key system -- " + ks.systemString);
+                return result.then(function () {
+                    return selectedInitData;
+                });
+            });
         }
     };
 };

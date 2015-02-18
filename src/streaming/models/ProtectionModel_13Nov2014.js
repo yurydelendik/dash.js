@@ -3,7 +3,8 @@
  * included below. This software may be subject to other third party and contributor
  * rights, including patent rights, and no such rights are granted under this license.
  *
- * Copyright (c) 2014-2015, Cable Television Laboratories, Inc.
+ * Copyright 2015 Mozilla Foundation
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -29,13 +30,34 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
+
+MediaPlayer.models.ProtectionModel_13Nov2014 = function () {
+
+    var keySystemsCache = Object.create(null);
+
+    function getMediaKeys(id, videoType, initDataType) {
+        var cacheKey = id + '-' + videoType + '-' + initDataType;
+        if (!keySystemsCache[cacheKey]) {
+            // TODO match the options to the spec
+            var options = [
+                {
+                  initDataType: initDataType,
+                  videoType: videoType,
+                }
+            ];
+            keySystemsCache[cacheKey] = navigator.requestMediaKeySystemAccess(id, options).
+                    then(function (keySystem) {
+                return keySystem.createMediaKeys();
+            });
+        }
+        return keySystemsCache[cacheKey];
+    }
 
     var videoElement = null,
         mediaKeys = null,
 
         // API names object selected for this user agent
-        api = null,
+        api = MediaPlayer.models.ProtectionModel_13Nov2014.API,
 
         // Session list
         sessions = [],
@@ -50,9 +72,12 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
                     switch (event.type) {
 
                         case api.needkey:
-                            self.notify(MediaPlayer.models.ProtectionModel.eventList.ENAME_NEED_KEY,
-                                new MediaPlayer.vo.protection.NeedKey(event.initData));
-                            break;
+                          // Clone event's data for async use
+                          var initData = new Uint8Array(new Uint8Array(event.initData)).buffer;
+                          var initDataType = event.initDataType;
+                          self.notify(MediaPlayer.models.ProtectionModel.eventList.ENAME_NEED_KEY,
+                              new MediaPlayer.vo.protection.NeedKey(initData, initDataType));
+                          break;
                     }
                 }
             };
@@ -107,7 +132,7 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
         unsubscribe: undefined,
         protectionExt: undefined,
         keySystem: null,
-        async: false,
+        async: true,
 
         setup: function() {
             eventHandler = createEventHandler.call(this);
@@ -117,8 +142,6 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
          * Initialize this protection model
          */
         init: function() {
-            var tmpVideoElement = document.createElement("video");
-            api = MediaPlayer.models.ProtectionModel_3Feb2014.detect(tmpVideoElement);
         },
 
         teardown: function() {
@@ -131,15 +154,29 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
         },
 
         isSupported: function(keySystem, contentType) {
-            return window[api.MediaKeys].isTypeSupported(keySystem.systemString, contentType);
+            throw new Error('Not implemented');
+        },
+
+        isSupportedAsync: function(keySystem, contentType, initDataType) {
+            return getMediaKeys(keySystem.systemString, contentType, initDataType).then(function (mediaKeys) {
+              return keySystem;
+            }, function (reason) {
+              return null;
+            })
         },
 
         selectKeySystem: function(keySystem) {
+            throw new Error('Not implemented');
+        },
+
+        selectKeySystemAsync: function (keySystem, contentType, initDataType) {
             this.keySystem = keySystem;
-            mediaKeys = new window[api.MediaKeys](this.keySystem.systemString);
-            if (videoElement) {
-                videoElement[api.setMediaKeys](mediaKeys);
-            }
+            return getMediaKeys(keySystem.systemString, contentType, initDataType).then(function (mediaKeys_) {
+                mediaKeys = mediaKeys_;
+                if (videoElement) {
+                    videoElement.setMediaKeys(mediaKeys);
+                }
+            });
         },
 
         setMediaElement: function(mediaElement) {
@@ -149,11 +186,11 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
             videoElement = mediaElement;
             videoElement.addEventListener(api.needkey, eventHandler);
             if (mediaKeys) {
-                videoElement[api.setMediaKeys](mediaKeys);
+                videoElement.setMediaKeys(mediaKeys);
             }
         },
 
-        createKeySession: function(initData, contentType/*, initDataType*/) {
+        createKeySession: function(initData, contentType, initDataType) {
 
             if (!this.keySystem || !mediaKeys) {
                 throw new Error("Can not create sessions until you have selected a key system");
@@ -162,7 +199,7 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
             // TODO: Need to check for duplicate initData.  If we already have
             // a KeySession for this exact initData, we shouldn't create a new session.
 
-            var session = mediaKeys.createSession(contentType, initData);
+            var session = mediaKeys.createSession();
             var sessionToken = createSessionToken.call(this, session, initData);
 
             // Add all event listeners
@@ -170,6 +207,8 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
             session.addEventListener(api.message, sessionToken);
             session.addEventListener(api.ready, sessionToken);
             session.addEventListener(api.close, sessionToken);
+
+            session.generateRequest(initDataType, initData);
 
             // Add to our session list
             sessions.push(sessionToken);
@@ -186,7 +225,7 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
                 session.update(message);
             } else {
                 // For clearkey, message is a MediaPlayer.vo.protection.ClearKeyKeySet
-                session.update(message.toJWKString());
+                session.update(message.toJWKBytes());
             }
         },
 
@@ -221,9 +260,8 @@ MediaPlayer.models.ProtectionModel_3Feb2014 = function () {
 };
 
 // Defines the supported 3Feb2014 API variations
-MediaPlayer.models.ProtectionModel_3Feb2014.APIs = [
+MediaPlayer.models.ProtectionModel_13Nov2014.API =
     // Un-prefixed as per spec
-    // Chrome 38 (and some earlier versions) with chrome://flags -- Enable Encrypted Media Extensions
     {
         // Video Element
         setMediaKeys: "setMediaKeys",
@@ -235,57 +273,36 @@ MediaPlayer.models.ProtectionModel_3Feb2014.APIs = [
         release: "close",
 
         // Events
-        needkey: "needkey",
+        needkey: "encrypted",
         error: "keyerror",
-        message: "keymessage",
-        ready: "keyadded",
+        message: "message",
+        ready: "keystatuseschange",
         close: "keyclose"
-    },
-    // MS-prefixed (IE11, Windows 8.1)
-    {
-        // Video Element
-        setMediaKeys: "msSetMediaKeys",
-
-        // MediaKeys
-        MediaKeys: "MSMediaKeys",
-
-        // MediaKeySession
-        release: "close",
-
-        // Events
-        needkey: "msneedkey",
-        error: "mskeyerror",
-        message: "mskeymessage",
-        ready: "mskeyadded",
-        close: "mskeyclose"
-    }
-];
+    };
 
 /**
- * Detects presence of EME v3Feb2014 APIs
+ * Detects presence of EME v14Nov2014 APIs
  *
  * @param videoElement {HTMLMediaElement} the media element that will be
  * used for detecting APIs
  * @returns an API object that is used when initializing the ProtectionModel
  * instance
  */
-MediaPlayer.models.ProtectionModel_3Feb2014.detect = function(videoElement) {
-    var apis = MediaPlayer.models.ProtectionModel_3Feb2014.APIs;
-    for (var i = 0; i < apis.length; i++) {
-        var api = apis[i];
-        if (typeof videoElement[api.setMediaKeys] !== 'function') {
-            continue;
-        }
-        if (typeof window[api.MediaKeys] !== 'function')  {
-            continue;
-        }
-        return api;
+MediaPlayer.models.ProtectionModel_13Nov2014.detect = function(videoElement) {
+    if (typeof navigator.requestMediaKeySystemAccess !== 'function') {
+      return false;
+    }
+    if (typeof videoElement.setMediaKeys !== 'function') {
+      return false;
+    }
+    if (typeof window.MediaKeys !== 'function')  {
+      return false;
     }
 
-    return null;
+    return true;
 };
 
-MediaPlayer.models.ProtectionModel_3Feb2014.prototype = {
-    constructor: MediaPlayer.models.ProtectionModel_3Feb2014
+MediaPlayer.models.ProtectionModel_13Nov2014.prototype = {
+    constructor: MediaPlayer.models.ProtectionModel_13Nov2014
 };
 

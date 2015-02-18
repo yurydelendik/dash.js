@@ -64,10 +64,52 @@ MediaPlayer.vo.protection.ClearKeyKeySet = function(keyPairs, type) {
         if (this.type) {
             retval.type = this.type;
         }
+
         return JSON.stringify(retval);
+    };
+
+    this.toJWKBytes = function() {
+        var str = this.toJWKString();
+        var arr = new ArrayBuffer(str.length);
+        var view = new Uint8Array(arr);
+        for (var i = 0; i < str.length; i++) {
+            view[i] = str.charCodeAt(i);
+        }
+        return arr;
     };
 };
 
 MediaPlayer.vo.protection.ClearKeyKeySet.prototype = {
     constructor: MediaPlayer.vo.protection.ClearKeyKeySet
+};
+
+MediaPlayer.vo.protection.ClearKeyKeySet.decode = function (message) {
+  function arrayBufferToString(arr) {
+    var str = '';
+    var view = new Uint8Array(arr);
+    for (var i = 0; i < view.length; i++) {
+      str += String.fromCharCode(view[i]);
+    }
+    return str;
+  }
+
+  function stringToArrayBuffer(str) {
+    var arr = new ArrayBuffer(str.length);
+    var view = new Uint8Array(arr);
+    for (var i = 0; i < str.length; i++) {
+      view[i] = str.charCodeAt(i);
+    }
+    return arr;
+  }
+
+  var msgStr = arrayBufferToString(message);
+  var msg = JSON.parse(msgStr);
+  var keyPairs = [];
+
+  for (var i = 0; i < msg.kids.length; i++) {
+    var idBin = window.atob(msg.kids[i].replace(/-/g, "+").replace(/_/g, "/"));
+    var keyid = new Uint8Array(stringToArrayBuffer(idBin));
+    keyPairs.push(new MediaPlayer.vo.protection.KeyPair(keyid, new Uint8Array(16)));
+  }
+  return new MediaPlayer.vo.protection.ClearKeyKeySet(keyPairs, msg.type);
 };
